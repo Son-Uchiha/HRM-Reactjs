@@ -21,12 +21,11 @@ import {
   ModalFooter,
   useOverlayState,
 } from "@heroui/react";
-import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS, mockUsers } from "../../data/users";
+import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
 import { useQuery } from "@tanstack/react-query";
 import { usersApi } from "../../api/users";
 
 const LIMIT = 10;
-const displayedUsers = mockUsers.slice(0, LIMIT);
 
 const inputCls =
   "border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full bg-white transition-all";
