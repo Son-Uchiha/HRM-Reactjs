@@ -8,7 +8,7 @@ const readOnlyCls =
   "border border-slate-200 rounded-lg px-3.5 py-2 text-sm bg-slate-100/80 text-slate-600 cursor-not-allowed w-full select-none";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, isLoadingUser } = useAuth();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -16,6 +16,16 @@ export default function ProfilePage() {
       currency: "VND",
     }).format(amount);
   };
+
+  // Khi đang tải dữ liệu từ API getMe, hiển thị màn hình chờ/skeleton
+  if (isLoadingUser) {
+    return (
+      <div className="max-w-4xl mx-auto p-12 text-center text-slate-500">
+        <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-2"></div>
+        <p>Đang tải thông tin hồ sơ của bạn...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -111,19 +121,24 @@ export default function ProfilePage() {
                   <label className="text-xs font-semibold text-slate-700">
                     Họ và tên <span className="text-rose-500">*</span>
                   </label>
-                  <input type="text" defaultValue={user?.name} className={inputCls} />
+                  <input type="text" autoComplete="name" defaultValue={user?.name ?? ""} className={inputCls} />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
-                  <input type="tel" defaultValue={user?.phone} className={inputCls} />
+                  <input type="tel" autoComplete="tel" defaultValue={user?.phone ?? ""} className={inputCls} />
                 </div>
 
                 <div className="flex flex-col gap-1 sm:col-span-2">
                   <label className="text-xs font-semibold text-slate-700">
                     Đổi mật khẩu mới (Bỏ trống nếu không thay đổi)
                   </label>
-                  <input type="password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" className={inputCls} />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                    className={inputCls}
+                  />
                 </div>
               </div>
             </div>
@@ -137,22 +152,22 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500">Tên đăng nhập (Username)</label>
-                  <input type="text" readOnly disabled value={user?.username} className={readOnlyCls} />
+                  <input type="text" readOnly disabled value={user?.username ?? ""} className={readOnlyCls} />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500">Email tài khoản</label>
-                  <input type="email" readOnly disabled value={user?.email} className={readOnlyCls} />
+                  <input type="email" readOnly disabled value={user?.email ?? ""} className={readOnlyCls} />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500">Phòng ban</label>
-                  <input type="text" readOnly disabled value={user?.department} className={readOnlyCls} />
+                  <input type="text" readOnly disabled value={user?.department ?? ""} className={readOnlyCls} />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500">Vị trí / Chức danh</label>
-                  <input type="text" readOnly disabled value={user?.position} className={readOnlyCls} />
+                  <input type="text" readOnly disabled value={user?.position ?? ""} className={readOnlyCls} />
                 </div>
 
                 <div className="flex flex-col gap-1">

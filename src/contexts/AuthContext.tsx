@@ -1,12 +1,14 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { authApi } from "../api/auth";
 import type { User } from "../types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type AuthContextType = {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  user: User | null;
+  user: User | undefined;
+  isLoadingUser: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -14,23 +16,23 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(localStorage.getItem("accessToken")));
 
-  const [user, setUser] = useState<User | null>(null);
+  const queryClient = useQueryClient(); // Khởi tạo queryClient
+  // Queries
+  const { data: user, isLoading: isLoadingUser } = useQuery({
+    queryKey: ["me"],
+    queryFn: authApi.getMe,
+    enabled: isAuthenticated,
+  });
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      authApi.getMe().then(setUser);
-      console.log(user);
-    }
-  }, [isAuthenticated]);
+  console.log(user);
 
   const login = async (username: string, password: string) => {
     const data = await authApi.login(username, password);
     localStorage.setItem("accessToken", data.accessToken);
     localStorage.setItem("refreshToken", data.refreshToken);
 
-    // 2. Chủ động lấy thông tin User ngay tại đây trước khi báo đăng nhập thành công
-    const userProfile = await authApi.getMe();
-    setUser(userProfile);
+    // Nạp ngay lập tức dữ liệu User mới vào Cache (Admin sẽ hiện ngay 0ms, không bị chớp Employee cũ)
+    queryClient.setQueryData(["me"], data.user);
 
     setIsAuthenticated(true);
   };
@@ -42,6 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     setIsAuthenticated(false);
+
+    // Xóa sạch toàn bộ Cache khi Đăng xuất (tránh rò rỉ dữ liệu sang tài khoản khác)
+    queryClient.clear();
   };
   return (
     <AuthContext
@@ -50,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated,
         login,
         logout,
+        isLoadingUser,
       }}
     >
       {children}
