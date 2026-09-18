@@ -24,6 +24,7 @@ import {
 import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { usersApi } from "../../api/users";
+import { useRef, useState } from "react";
 
 const LIMIT = 10;
 
@@ -49,9 +50,14 @@ export default function EmployeesPage() {
   };
   // 1. Đọc số trang từ URL (vd: ?page=2). Nếu không có hoặc lỗi thì mặc định là 1
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const searchFromUrl = searchParams.get("search") || "";
+  // 2. State input và Ref debounce
+  const [searchInput, setSearchInput] = useState(searchFromUrl);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data } = useQuery({
-    queryKey: ["users", { page, limit: LIMIT }],
-    queryFn: () => usersApi.getUsers({ page, limit: LIMIT }),
+    queryKey: ["users", { page, limit: LIMIT, search: searchFromUrl }],
+    queryFn: () => usersApi.getUsers({ page, limit: LIMIT, search: searchFromUrl }),
     placeholderData: keepPreviousData,
   });
   const users = data?.data ?? [];
@@ -84,6 +90,18 @@ export default function EmployeesPage() {
     }
     pages.push(totalPages);
     return pages;
+  };
+
+  // 3. Hàm xử lý onChange của bạn
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+    searchTimerRef.current = setTimeout(() => {
+      updateParams({ page: "1", search: value });
+    }, 500);
   };
 
   return (
@@ -119,6 +137,8 @@ export default function EmployeesPage() {
                 🔍
               </span>
               <input
+                value={searchInput}
+                onChange={handleSearchInputChange}
                 type="text"
                 placeholder="Tìm theo Tên, Username, Email..."
                 className="border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-full bg-white"
