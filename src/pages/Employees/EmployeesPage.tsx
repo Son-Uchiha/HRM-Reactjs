@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   Button,
   Chip,
@@ -22,7 +22,7 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { usersApi } from "../../api/users";
 
 const LIMIT = 10;
@@ -33,12 +33,21 @@ const inputCls =
 export default function EmployeesPage() {
   const navigate = useNavigate();
   const createState = useOverlayState();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // 1. Đọc số trang từ URL (vd: ?page=2). Nếu không có hoặc lỗi thì mặc định là 1
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const { data } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => usersApi.getUsers(),
+    queryKey: ["users", { page, limit: LIMIT }],
+    queryFn: () => usersApi.getUsers({ page, limit: LIMIT }),
+    // placeholderData: keepPreviousData,
   });
   const users = data?.data ?? [];
   const totalUsers = data?.pagination.total ?? 0;
+  const totalPages = data?.pagination.totalPages ?? 1;
+  // Tính dải số bản ghi: vd "Hiển thị 1–10 của 32 nhân viên"
+  const from = totalUsers > 0 ? (page - 1) * LIMIT + 1 : 0;
+  const to = Math.min(page * LIMIT, totalUsers);
+
   // Format currency VNĐ
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -275,23 +284,30 @@ export default function EmployeesPage() {
       <div className="mt-6 bg-white p-3 rounded-xl border border-slate-200">
         <Pagination className="w-full">
           <Pagination.Summary>
-            Hiển thị 1–{LIMIT} của {totalUsers} nhân viên
+            Hiển thị {from}–{to} của {totalUsers} nhân viên
           </Pagination.Summary>
           <Pagination.Content>
+            {/* Nút lùi trang */}
             <Pagination.Item>
-              <Pagination.Previous isDisabled>
+              <Pagination.Previous isDisabled={page <= 1} onPress={() => setSearchParams({ page: String(page - 1) })}>
                 <Pagination.PreviousIcon />
                 <span>Trước</span>
               </Pagination.Previous>
             </Pagination.Item>
+            {/* Các số trang 1, 2, 3... */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <Pagination.Item key={p}>
+                <Pagination.Link isActive={p === page} onPress={() => setSearchParams({ page: String(p) })}>
+                  {p}
+                </Pagination.Link>
+              </Pagination.Item>
+            ))}
+            {/* Nút tiến trang */}
             <Pagination.Item>
-              <Pagination.Link isActive>1</Pagination.Link>
-            </Pagination.Item>
-            <Pagination.Item>
-              <Pagination.Link>2</Pagination.Link>
-            </Pagination.Item>
-            <Pagination.Item>
-              <Pagination.Next>
+              <Pagination.Next
+                isDisabled={page >= totalPages}
+                onPress={() => setSearchParams({ page: String(page + 1) })}
+              >
                 <span>Sau</span>
                 <Pagination.NextIcon />
               </Pagination.Next>
