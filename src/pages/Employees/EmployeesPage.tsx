@@ -68,6 +68,23 @@ export default function EmployeesPage() {
       currency: "VND",
     }).format(amount);
   };
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    pages.push(1);
+    if (page > 3) {
+      pages.push("ellipsis");
+    }
+    const start = Math.max(2, page - 1);
+    const end = Math.min(totalPages - 1, page + 1);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    if (page < totalPages - 2) {
+      pages.push("ellipsis");
+    }
+    pages.push(totalPages);
+    return pages;
+  };
 
   return (
     <div className="space-y-6">
@@ -308,13 +325,19 @@ export default function EmployeesPage() {
               </Pagination.Previous>
             </Pagination.Item>
             {/* Các số trang 1, 2, 3... */}
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <Pagination.Item key={p}>
-                <Pagination.Link isActive={p === page} onPress={() => updateParams({ page: String(p) })}>
-                  {p}
-                </Pagination.Link>
-              </Pagination.Item>
-            ))}
+            {getPageNumbers().map((p, i) =>
+              p === "ellipsis" ? (
+                <Pagination.Item key={`ellipsis-${i}`}>
+                  <Pagination.Ellipsis />
+                </Pagination.Item>
+              ) : (
+                <Pagination.Item key={p}>
+                  <Pagination.Link isActive={p === page} onPress={() => updateParams({ page: String(page) })}>
+                    {p}
+                  </Pagination.Link>
+                </Pagination.Item>
+              ),
+            )}
             {/* Nút tiến trang */}
             <Pagination.Item>
               <Pagination.Next isDisabled={page >= totalPages} onPress={() => updateParams({ page: String(page + 1) })}>
