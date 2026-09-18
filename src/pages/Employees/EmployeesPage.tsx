@@ -58,9 +58,23 @@ export default function EmployeesPage() {
   const department = (searchParams.get("department") ?? "") as UsersQuery["department"];
   const role = (searchParams.get("role") || "") as UsersQuery["role"];
   const status = (searchParams.get("status") || "") as UsersQuery["status"];
+  // (mặc định sort theo ngày tạo mới nhất created_at desc)
+  const sortBy = (searchParams.get("sort_by") || "created_at") as UsersQuery["sort_by"];
+  const order = (searchParams.get("order") || "desc") as UsersQuery["order"];
+
   const { data } = useQuery({
-    queryKey: ["users", { page, limit: LIMIT, search: searchFromUrl, department, role, status }],
-    queryFn: () => usersApi.getUsers({ page, limit: LIMIT, search: searchFromUrl, department, role, status }),
+    queryKey: ["users", { page, limit: LIMIT, search: searchFromUrl, department, role, status, sortBy, order }],
+    queryFn: () =>
+      usersApi.getUsers({
+        page,
+        limit: LIMIT,
+        search: searchFromUrl,
+        department,
+        role,
+        status,
+        sort_by: sortBy,
+        order,
+      }),
     placeholderData: keepPreviousData,
   });
   const users = data?.data ?? [];
@@ -206,6 +220,8 @@ export default function EmployeesPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">Sắp xếp theo:</span>
             <select
+              value={sortBy}
+              onChange={(e) => updateParams({ sort_by: e.target.value, page: "1" })}
               defaultValue="created_at"
               className="border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
             >
@@ -215,8 +231,18 @@ export default function EmployeesPage() {
                 </option>
               ))}
             </select>
-            <Button variant="outline" size="sm" className="h-7 text-xs px-2">
-              ↓ Giảm dần
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onPress={() =>
+                updateParams({
+                  order: order === "desc" ? "asc" : "desc",
+                  page: "1",
+                })
+              }
+            >
+              {order === "desc" ? "↓ Giảm dần" : "↑ Tăng dần"}
             </Button>
           </div>
           <span className="text-xs text-slate-400">Bộ lọc tương thích với endpoint GET /api/users</span>
