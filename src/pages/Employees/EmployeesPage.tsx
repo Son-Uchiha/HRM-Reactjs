@@ -332,7 +332,7 @@ export default function EmployeesPage() {
                 </Pagination.Item>
               ) : (
                 <Pagination.Item key={p}>
-                  <Pagination.Link isActive={p === page} onPress={() => updateParams({ page: String(page) })}>
+                  <Pagination.Link isActive={p === page} onPress={() => updateParams({ page: String(p) })}>
                     {p}
                   </Pagination.Link>
                 </Pagination.Item>
