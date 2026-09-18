@@ -39,7 +39,7 @@ export default function EmployeesPage() {
   const { data } = useQuery({
     queryKey: ["users", { page, limit: LIMIT }],
     queryFn: () => usersApi.getUsers({ page, limit: LIMIT }),
-    // placeholderData: keepPreviousData,
+    placeholderData: keepPreviousData,
   });
   const users = data?.data ?? [];
   const totalUsers = data?.pagination.total ?? 0;
