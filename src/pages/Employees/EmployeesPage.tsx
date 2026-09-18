@@ -38,7 +38,7 @@ export default function EmployeesPage() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       Object.entries(updates).forEach(([key, value]) => {
-        if (value === null) {
+        if (value === null || value === "") {
           next.delete(key);
         } else {
           next.set(key, value);
