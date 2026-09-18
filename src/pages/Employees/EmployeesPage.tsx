@@ -34,6 +34,19 @@ export default function EmployeesPage() {
   const navigate = useNavigate();
   const createState = useOverlayState();
   const [searchParams, setSearchParams] = useSearchParams();
+  const updateParams = (updates: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null) {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+      });
+      return next;
+    });
+  };
   // 1. Đọc số trang từ URL (vd: ?page=2). Nếu không có hoặc lỗi thì mặc định là 1
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const { data } = useQuery({
@@ -289,7 +302,7 @@ export default function EmployeesPage() {
           <Pagination.Content>
             {/* Nút lùi trang */}
             <Pagination.Item>
-              <Pagination.Previous isDisabled={page <= 1} onPress={() => setSearchParams({ page: String(page - 1) })}>
+              <Pagination.Previous isDisabled={page <= 1} onPress={() => updateParams({ page: String(page - 1) })}>
                 <Pagination.PreviousIcon />
                 <span>Trước</span>
               </Pagination.Previous>
@@ -297,17 +310,14 @@ export default function EmployeesPage() {
             {/* Các số trang 1, 2, 3... */}
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Pagination.Item key={p}>
-                <Pagination.Link isActive={p === page} onPress={() => setSearchParams({ page: String(p) })}>
+                <Pagination.Link isActive={p === page} onPress={() => updateParams({ page: String(p) })}>
                   {p}
                 </Pagination.Link>
               </Pagination.Item>
             ))}
             {/* Nút tiến trang */}
             <Pagination.Item>
-              <Pagination.Next
-                isDisabled={page >= totalPages}
-                onPress={() => setSearchParams({ page: String(page + 1) })}
-              >
+              <Pagination.Next isDisabled={page >= totalPages} onPress={() => updateParams({ page: String(page + 1) })}>
                 <span>Sau</span>
                 <Pagination.NextIcon />
               </Pagination.Next>
