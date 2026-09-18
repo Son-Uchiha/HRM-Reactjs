@@ -1,169 +1,121 @@
-# TÀI LIỆU THUYẾT TRÌNH: BẢN DỊCH "DỄ HIỂU NHẤT" VỀ CÁC KỸ THUẬT FRONTEND
-
-> **Mục tiêu:** Giúp bạn hiểu bản chất từng bài toán trong đời thực. Khi hiểu rồi, bạn lên thuyết trình bằng lời văn tự nhiên của mình mà không cần học vẹt!
-
----
-
-## MỤC LỤC
-
-1. [Kỹ thuật 1: JWT — Chiếc "vòng tay vé vào cổng"](#1-jwt--chiec-vong-tay-ve-vao-cong)
-2. [Kỹ thuật 2: Refresh Token Queue — Giải cứu sự cố nghẽn mạng khi hết hạn Token](#2-refresh-token-queue--giai-cuu-su-co-nghen-mang)
-3. [Kỹ thuật 3 & 4: RBAC & Phân quyền Admin / Employee — Chốt chặn 3 tầng](#3--4-rbac--phan-quyen-admin--employee)
-4. [Kỹ thuật 5: TanStack Query & `keepPreviousData` — Xóa sổ hoàn toàn hiện tượng nháy trắng màn hình](#5-tanstack-query--keepPreviousData)
-5. [Kỹ thuật 6: Tìm kiếm với Debounce — Ngăn người dùng "vô tình DDoS" server](#6-tim-kiem-voi-debounce)
+# BÁO CÁO KỸ THUẬT FRONTEND: CÁC GIẢI PHÁP VÀ KỸ THUẬT NỔI BẬT
+**Hệ thống:** Quản lý Nhân sự & Phân quyền (HRM & RBAC System)  
+**Công nghệ:** React 19, TypeScript, React Router v7, TanStack Query v5, Axios, HeroUI
 
 ---
 
-## 1. JWT — Chiếc "vòng tay vé vào cổng"
+## 1. JWT (JSON Web Token) & Axios Request Interceptor
 
-### 🎯 Bài toán thực tế là gì?
+* **Tại sao dự án lại chọn JWT (Thay vì Session/Cookie truyền thống)?**  
+  1. **Phù hợp kiến trúc SPA & RESTful API (Tách rời Frontend - Backend):**  
+     Frontend (React - Port 5173) và Backend (Bun - Port 3000) hoạt động độc lập. Nếu dùng Session Cookie truyền thống, hệ thống sẽ gặp nhiều rắc rối phức tạp về CORS, chính sách `SameSite` và chia sẻ cookie giữa các domain/port. JWT giải quyết triệt để vấn đề này vì token được truyền qua Header HTTP tiêu chuẩn.
+  2. **Kiến trúc không trạng thái (Stateless & High Scalability):**  
+     Server không cần tốn bộ nhớ RAM hay Database (Redis) để lưu trữ phiên của hàng ngàn người dùng như Session. Bản thân JWT là *Self-contained* (tự chứa các thông tin cần thiết như `userId`, `role`, hạn dùng). Server chỉ cần xác thực chữ ký số (Signature) là hợp lệ.
+  3. **Tối ưu cho mô hình phân quyền RBAC:**  
+     Thông tin quyền hạn (`role`) được đóng gói ngay trong Payload của JWT, giúp hệ thống kiểm tra và áp dụng quyền tức thì mà không phải liên tục truy vấn lại cơ sở dữ liệu.
+  4. **Miễn nhiễm với tấn công CSRF:**  
+     Khác với Cookie (vốn tự động đính kèm trong mọi request từ trình duyệt và dễ bị tấn công Cross-Site Request Forgery), JWT được lưu trữ và đính kèm thủ công qua Header `Authorization`, giúp ứng dụng an toàn hơn trước các cuộc tấn công giả mạo yêu cầu.
 
-Khi bạn đăng nhập vào web, làm thế nào để ở các trang sau (như xem hồ sơ, xem bảng lương), Frontend chứng minh được với Backend: _"Tôi chính là người đã đăng nhập thành công lúc nãy"_?
+* **Vấn đề đặt ra phía Frontend (Problem):**  
+  Khi sử dụng JWT, mọi API được bảo vệ đều yêu cầu phải có token trong Header. Nếu không có cơ chế quản lý tập trung, lập trình viên sẽ phải truyền thủ công `Authorization: Bearer <token>` vào từng hàm gọi API, gây lặp code và rất dễ bỏ sót dẫn đến lỗi 401.
 
-- **Nếu không có JWT:** Mỗi lần bấm chuyển trang hoặc bấm nút, trang web lại phải bắt bạn nhập lại Mật khẩu! Hoặc Server phải mở một cuốn sổ lớn ghi nhớ từng người (Session), nếu có 10.000 người online thì Server sẽ quá tải bộ nhớ.
+* **Cách giải quyết phía Frontend (Solution):**  
+  Sau khi đăng nhập thành công, `accessToken` được lưu trữ tại `localStorage`. Dự án sử dụng **Axios Request Interceptor** (`src/lib/http.ts`) để can thiệp tập trung vào mọi HTTP request trước khi rời Client, tự động đính kèm tiêu đề:  
+  `Authorization: Bearer <accessToken>`.
 
-### 💡 Giải pháp JWT trong dự án:
-
-JWT giống như việc bạn đi công viên nước Đầm Sen / VinWonders:
-
-- Lúc mua vé ở cổng (Login), bảo vệ phát cho bạn một **chiếc vòng tay bằng giấy** (chính là chuỗi `accessToken`).
-- Trên vòng tay có đóng con dấu chống giả mạo của công viên, ghi rõ tên bạn và hạn dùng trong ngày.
-- Khi bạn sang khu trượt nước hay hồ bơi (gọi API lấy dữ liệu), bạn **không cần xuất trình CCCD hay mật khẩu nữa**, chỉ cần giơ vòng tay ra.
-
-### 🛠️ Áp dụng vào code FE thế nào?
-
-- Khi Login xong: Lưu chiếc vòng tay này vào `localStorage`.
-- Để không phải viết tay vòng tay này vào từng hàm gọi API, dự án dùng **Axios Request Interceptor** (`src/lib/http.ts`): Cứ hễ có request nào chuẩn bị bay đi, Interceptor sẽ tự động móc token từ `localStorage` và dán vào Header `Authorization: Bearer <token>`.
-
----
-
-## 2. Refresh Token Queue — Giải cứu sự cố nghẽn mạng
-
-> ⭐ **ĐÂY LÀ KỸ THUẬT ĂN ĐIỂM CAO NHẤT KHI THUYẾT TRÌNH!**
-
-### 🎯 Bài toán thực tế là gì?
-
-- Chiếc vòng tay `accessToken` ở trên chỉ cho sống **15 phút** thôi. Vì sao? Vì nếu hacker lỡ chụp trộm được token của bạn, sau 15 phút token đó thành rác, hacker không làm gì được nữa ➡️ **Rất an toàn**.
-- Nhưng người dùng đang làm việc thì sao? Chẳng lẽ cứ 15 phút lại bắt người ta đăng nhập lại mật khẩu một lần? Khách hàng sẽ đập bàn phím vì ức chế!
-- Vì vậy, Backend phát thêm một chiếc thẻ phụ gọi là `refreshToken` (sống tận 7 ngày) cất kín trong tủ, dùng để **đi xin chiếc vòng tay 15 phút mới** mà không cần gõ mật khẩu.
-
-### 💣 Thảm họa "Race Condition" xảy ra khi nào?
-
-Hãy tưởng tượng: Bạn vừa bấm F5 trang Quản lý nhân viên. Trình duyệt gửi **cùng lúc 3 request song song**:
-
-1. Lấy danh sách nhân viên (`GET /api/users`)
-2. Lấy thông tin tài khoản của mình (`GET /api/auth/me`)
-3. Lấy ảnh đại diện
-
-Đúng lúc đó, vòng tay 15 phút vừa hết hạn!
-➡️ **Cả 3 request cùng nhận lỗi `401 Unauthorized` cùng 1 tích tắc!**
-
-**Hậu quả nếu KHÔNG có Hàng đợi (Queue):**
-
-- Cả 3 request cùng tranh nhau gọi API xin cấp lại token mới.
-- Nhưng Backend áp dụng cơ chế bảo mật: _"Một Refresh Token chỉ được đổi 1 lần, đổi xong là hủy thẻ cũ"_.
-- Khi Request 1 đổi xong, thẻ cũ bị hủy. Request 2 và 3 nhảy vào đòi đổi tiếp ➡️ Backend báo: _"Thẻ này đã bị dùng rồi, nghi ngờ bị hack!"_ ➡️ **Đá văng người dùng ra trang Login ngay lập tức!**
-
-### 💡 Giải pháp Hàng Đợi (Queue Interceptor trong `http.ts`):
-
-Hệ thống giải quyết như một hàng xếp hàng văn minh:
-
-1. Khi gặp lỗi 401, **Request 1 đến trước tiên**: Nó giơ tay hô to: _"Tôi đang đi đổi token mới đây, mấy ông kia đứng lại chờ!"_ (bật cờ `isRefreshing = true`).
-2. **Request 2 và 3 đến sau**: Thấy cờ `isRefreshing === true` ➡️ **Ngoan ngoãn đứng vào một Hàng Đợi (`failedQueue`)** và tạm dừng lại (dưới dạng Promise chờ).
-3. Khi Request 1 đổi được Token mới về thành công:
-   - Nó quay lại hàng đợi, phát token mới cho Request 2 và Request 3.
-   - Cả 3 request cùng tự động chạy lại với token mới.
-4. **Kết quả:** Người dùng không hề biết có sự cố vừa xảy ra, trang web vẫn load mượt mà, không bị văng ra Login!
+* **Giá trị mang lại (Value):**  
+  Tự động hóa 100% quy trình xác thực phía Client, đảm bảo mọi request hợp lệ mà không cần viết lặp code ở từng component, đồng thời tối ưu hiệu năng và độ tin cậy của toàn hệ thống.
 
 ---
 
-## 3 & 4. RBAC & Phân quyền Admin / Employee
+## 2. Refresh Token Queue kết hợp Axios Response Interceptor
 
-### 🎯 Bài toán thực tế là gì?
+* **Vấn đề đặt ra (Problem):**  
+  Nhằm đảm bảo an toàn, `accessToken` được thiết lập thời gian sống ngắn (15 phút). Khi token hết hạn, các request đồng thời (ví dụ: khi vừa tải trang có 3–4 API cùng chạy) đều sẽ nhận lỗi `401 Unauthorized`. Nếu cả 4 request này cùng lúc gọi API refresh token, cơ chế *Refresh Token Rotation* ở Backend sẽ coi đây là hành vi dùng lại token cũ (bị xâm nhập) và lập tức vô hiệu hóa phiên, khiến người dùng bị văng ra trang Login bất thường.
 
-Trong công ty có **Sếp (Admin)** và **Nhân viên (Employee)**:
+* **Cách giải quyết (Solution):**  
+  Áp dụng **Axios Response Interceptor** kết hợp cơ chế **Cờ khóa (`isRefreshing`) và Hàng đợi (`failedQueue`)** trong `src/lib/http.ts`:
+  1. Request đầu tiên gặp lỗi 401 sẽ bật cờ `isRefreshing = true` và trực tiếp gọi API `/auth/refresh`.
+  2. Các request gặp lỗi 401 theo sau sẽ không gọi refresh nữa mà được đẩy vào hàng đợi dưới dạng các `Promise` chờ.
+  3. Khi có `accessToken` mới: Hệ thống giải phóng hàng đợi, gán token mới cho toàn bộ các request đang chờ và tự động thực thi lại (retry).
 
-- Sếp có quyền: Xem danh sách, xem mức lương toàn công ty, thêm nhân viên, đuổi việc (xóa) nhân viên.
-- Nhân viên: Chỉ được xem và sửa hồ sơ (Profile) của chính mình. Nếu nhân viên mà vào xem được mức lương của đồng nghiệp thì nội bộ công ty sẽ lục đục!
-
-### 💡 Giải pháp Chốt chặn 3 tầng ở Frontend:
-
-#### 🚪 Tầng 1: Chốt chặn đường link (Route Guard)
-
-- Nếu một nhân viên tò mò, tự gõ trên thanh địa chỉ trình duyệt: `http://localhost:5173/employees` để xem danh sách và lương.
-- Component `<AdminRoute>` sẽ chặn ngay tại cửa: Kiểm tra thấy `user.role !== 'admin'` ➡️ **Lập tức đá văng về trang `/profile`**, không cho tải trang nhân sự.
-
-#### 👁️ Tầng 2: Giao diện tàng hình (Dynamic UI)
-
-- Trong thanh menu điều hướng (`Layout.tsx`), code kiểm tra:
-  - Nếu là Admin ➡️ Hiển thị menu **"Nhân sự"**.
-  - Nếu là Employee ➡️ Ẩn hoàn toàn chữ "Nhân sự", nhân viên không nhìn thấy thì sẽ không tò mò bấm vào.
-- Trong bảng nhân sự: Nút **"Xóa"** sẽ bị làm mờ và vô hiệu hóa đối với tài khoản Admin gốc (`user.id === 1`), tránh trường hợp Admin tự tay xóa chính mình làm hệ thống mất quyền quản trị.
-
-#### 🧭 Tầng 3: Điều hướng thông minh (`RootRedirect`)
-
-- Người dùng chỉ cần vào trang chủ `/`:
-  - Hệ thống tự check: Là Admin thì đưa sang `/employees`, là Employee thì đưa sang `/profile`. Người dùng không cần phải tự chọn đường dẫn.
+* **Tại sao sử dụng (Why):**  
+  Giải quyết triệt để lỗi xung đột (Race Condition) khi làm mới token. Duy trì phiên làm việc liên tục (Seamless Session), người dùng không bị gián đoạn hay bị văng ra màn hình đăng nhập.
 
 ---
 
-## 5. TanStack Query & `keepPreviousData`
+## 3. RBAC (Role-Based Access Control) trên Frontend
 
-### 🎯 Bài toán thực tế: Sự khó chịu của cách viết cũ
+* **Vấn đề đặt ra (Problem):**  
+  Hệ thống HRM có 2 nhóm đối tượng: **Admin** (toàn quyền quản trị nhân sự, xem lương) và **Employee** (chỉ có quyền xem và cập nhật thông tin cá nhân). Cần một kiến trúc phân quyền tập trung ở Frontend để phân tách ranh giới dữ liệu và chức năng giữa 2 vai trò này.
 
-Trước đây khi bạn dùng `useState` + `useEffect` để phân trang:
+* **Cách giải quyết (Solution):**  
+  Phân quyền dựa trên thuộc tính `user.role` nhận về từ API `/auth/me`. Dữ liệu này được quản trị tập trung thông qua `AuthContext` (`src/contexts/AuthContext.tsx`) và phân phối xuống toàn bộ cây component trong ứng dụng.
 
-1. Bạn đang ở Trang 1 xem danh sách nhân viên.
-2. Bạn bấm sang Trang 2: Dữ liệu Trang 1 bị xóa sạch ➡️ Hiện vòng xoay xoay tròn giữa màn hình 1 giây ➡️ Dữ liệu Trang 2 mới hiện lên.
-3. Cứ mỗi lần bấm chuyển trang (1 ➡️ 2 ➡️ 3) hay bấm Lọc phòng ban: **Màn hình lại bị nháy trắng và giật một cái**. Trải nghiệm người dùng rất khó chịu và thiếu chuyên nghiệp!
-
-### 💡 Kỹ thuật `placeholderData: keepPreviousData`:
-
-Kỹ thuật này giống như rạp chiếu phim khi đổi cảnh:
-
-- Khi bạn bấm sang Trang 2: TanStack Query **vẫn giữ nguyên bảng dữ liệu của Trang 1 trên màn hình** (không xoay, không nhấp nháy).
-- Dưới ngầm, nó âm thầm tải dữ liệu Trang 2.
-- Khi dữ liệu Trang 2 về đến nơi, nó nhẹ nhàng thay thế dữ liệu cũ.
-- **Kết quả:** Người dùng lật trang mượt mà như lướt app điện thoại, màn hình êm ru 100%!
-
-### 💡 Caching thông minh:
-
-- Nếu bạn xem Trang 1 ➡️ bấm sang Trang 2 ➡️ bấm lại Trang 1: **Dữ liệu hiện ra ngay lập tức 0ms**, không tốn 1 mili-giây nào chờ đợi, vì TanStack Query đã lưu sẵn Trang 1 trong bộ nhớ tạm (Cache).
+* **Tại sao sử dụng (Why):**  
+  Chuẩn hóa cấu trúc phân quyền ngay từ tầng Client, giúp code sáng sủa, dễ kiểm soát và sẵn sàng mở rộng thêm các vai trò mới (như `Manager`, `HR`) trong tương lai mà không làm vỡ cấu trúc hiện tại.
 
 ---
 
-## 6. Tìm kiếm với Debounce
+## 4. Phân Quyền Admin & Employee (Route Guards & Dynamic UI)
 
-### 🎯 Bài toán thực tế: Ngăn người dùng "vô tình đánh sập server"
+* **Vấn đề đặt ra (Problem):**  
+  Người dùng có vai trò `employee` có thể cố tình truy cập trái phép bằng cách nhập trực tiếp URL quản trị trên thanh địa chỉ (ví dụ: `/employees`). Bên cạnh đó, nếu giao diện vẫn hiển thị các nút chức năng quản trị (như nút Thêm, Xóa nhân viên) cho Employee thì trải nghiệm người dùng sẽ bị sai lệch.
 
-Giả sử bạn muốn tìm nhân viên tên: **"Nguyễn Văn An"** (gồm 13 ký tự).
+* **Cách giải quyết (Solution):**  
+  Triển khai bảo mật 2 lớp độc lập:
+  - **Lớp 1 - Route Guards (`routes.tsx`, `src/components/`):** Sử dụng các component bọc tuyến đường:
+    - `<ProtectedRoute>`: Yêu cầu đăng nhập.
+    - `<AdminRoute>`: Kiểm tra nếu `user.role !== 'admin'` sẽ lập tức điều hướng (redirect) về `/profile`.
+    - `<GuestRoute>`: Ngăn người đã đăng nhập quay lại màn hình Login.
+    - `<RootRedirect>`: Tự động chuyển hướng trang chủ (`/`) sang `/employees` (cho Admin) hoặc `/profile` (cho Employee).
+  - **Lớp 2 - Dynamic UI:** Menu "Nhân sự" trong `Layout.tsx` và các nút hành động (Xóa/Sửa) chỉ được render khi thỏa mãn điều kiện vai trò hợp lệ.
 
-- **Nếu KHÔNG có Debounce:**
-  - Bạn gõ chữ `"N"` ➡️ gọi 1 request API tìm chữ "N".
-  - Bạn gõ chữ `"g"` ➡️ gọi tiếp 1 request API tìm chữ "Ng".
-  - ...Bạn gõ xong chữ `"An"` ➡️ **13 request API liên tiếp dội bom vào server chỉ trong 2 giây!**
-- **Thảm họa:** Nếu công ty có 100 người cùng tìm kiếm, server sẽ nhận hàng ngàn request rác cùng lúc và bị nghẽn mạng. Chưa kể, request tìm chữ "N" (chạy chậm) có thể về sau request "Nguyễn Văn An" (chạy nhanh), làm kết quả trên màn hình bị đảo lộn lung tung!
-
-### 💡 Giải pháp Debounce (`useRef` + `setTimeout` 500ms):
-
-Cách hoạt động giống như một người kiên nhẫn lắng nghe:
-
-1. Bạn gõ chữ `"N"`: Hệ thống bật đồng hồ đếm ngược 500ms (nửa giây).
-2. Khi đồng hồ chưa kịp hết giờ, bạn gõ tiếp chữ `"g"`: Hệ thống lập tức **hủy đồng hồ cũ, đặt lại đồng hồ 500ms mới**.
-3. Bạn cứ gõ liên tục `"Nguyễn Văn An"` thì đồng hồ cứ bị reset liên tục.
-4. Đến khi bạn **ngừng tay suy nghĩ đủ 500ms**: Đồng hồ mới chính thức reo chuông ➡️ Gửi đi **đúng 1 request API duy nhất** với từ khóa hoàn chỉnh!
-
-👉 **Kết quả:** Người dùng vẫn gõ chữ mượt mà, nhưng tiết kiệm được **90% số lượng request** gửi lên server!
+* **Tại sao sử dụng (Why):**  
+  Ngăn chặn triệt để hành vi truy cập trái phép từ thanh địa chỉ URL, đồng thời giữ giao diện trực quan, tinh gọn và đúng thẩm quyền của từng đối tượng.
 
 ---
 
-## 🎤 BẢNG TỔNG KẾT DÀNH CHO BẠN KHI LÊN THUYẾT TRÌNH
+## 5. Quản lý Server State & Caching với TanStack Query v5 (`keepPreviousData`)
 
-| Kỹ thuật                                   | Trả lời ngắn gọn: "Dùng để làm gì?"                                                                                              |
-| :----------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
-| **1. JWT**                                 | Như "chiếc vòng tay" vào cổng, giúp xác thực người dùng không trạng thái mà không cần hỏi lại mật khẩu.                          |
-| **2. Refresh Token Queue**                 | Cơ chế hàng đợi tự động đổi token mới ngầm khi hết hạn, chống xung đột nhiều API và không làm văng người dùng ra màn hình Login. |
-| **3. RBAC & Route Guard**                  | Phân quyền Admin xem quản trị, Employee xem cá nhân. Chặn người dùng tự ý gõ link trên thanh địa chỉ.                            |
-| **4. Dynamic UI**                          | Ẩn/hiện menu và nút bấm theo đúng quyền hạn của tài khoản đang đăng nhập.                                                        |
-| **5. TanStack Query (`keepPreviousData`)** | Caching dữ liệu và giữ nguyên giao diện cũ khi chuyển trang, loại bỏ hoàn toàn việc nhấp nháy màn hình.                          |
-| **6. Debounce Search**                     | Đợi người dùng ngưng gõ 500ms mới gọi API, tránh spam hàng chục request rác lên server.                                          |
+* **Vấn đề đặt ra (Problem):**  
+  Khi quản lý dữ liệu từ Server bằng `useState` và `useEffect` truyền thống:
+  - Không có bộ nhớ đệm (Cache), dẫn đến việc gọi API trùng lặp gây hao tổn băng thông.
+  - Khi người dùng bấm chuyển trang phân trang hoặc thay đổi bộ lọc, dữ liệu trang cũ bị xóa trước khi dữ liệu trang mới tải xong, gây ra hiện tượng **nhấp nháy trắng màn hình (layout flicker/shift)** rất khó chịu.
+
+* **Cách giải quyết (Solution):**  
+  Sử dụng TanStack Query v5 để quản lý toàn bộ dữ liệu máy chủ:
+  - Lưu cache tự động theo `queryKey`: `["users", { page, limit, search, department, role, status, sortBy, order }]`.
+  - Sử dụng cấu hình `placeholderData: keepPreviousData`: Khi đổi trang hoặc đổi bộ lọc, dữ liệu cũ vẫn hiển thị cố định trên màn hình cho đến khi dữ liệu mới tải xong mới thực hiện thay thế.
+
+* **Tại sao sử dụng (Why):**  
+  Loại bỏ 100% hiện tượng nháy giật giao diện khi phân trang, mang lại trải nghiệm mượt mà như ứng dụng Desktop. Tốc độ phản hồi tức thì (0ms) khi người dùng duyệt lại các trang đã được lưu trong Cache.
+
+---
+
+## 6. Tối Ưu Tìm Kiếm với Kỹ Thuật Debounce (`useRef` + `setTimeout`)
+
+* **Vấn đề đặt ra (Problem):**  
+  Nếu kích hoạt gọi API ngay theo từng sự kiện gõ phím (`onChange`), khi người dùng nhập một từ khóa gồm 10 ký tự, hệ thống sẽ gửi liên tiếp 10 request lên Server trong vài giây. Hậu quả là gây lãng phí tài nguyên, quá tải Server và tiềm ẩn nguy cơ sai lệch thứ tự phản hồi của dữ liệu mạng (Race Condition).
+
+* **Cách giải quyết (Solution):**  
+  Xây dựng giải pháp Debounce trực tiếp bên trong component bằng `useRef` và `setTimeout`:
+  - `searchInput` (State): Cập nhật tức thì (0ms) để ô nhập liệu luôn mượt mà khi gõ.
+  - `searchTimerRef` (`useRef`): Lưu giữ định danh bộ đếm thời gian xuyên suốt các lần re-render mà không gây render thừa.
+  - Mỗi khi có phím mới được gõ, bộ hẹn giờ cũ bị hủy bằng `clearTimeout`. Chỉ khi người dùng **ngừng gõ đủ 500ms**, hệ thống mới đẩy tham số lên URL (`updateParams`) để kích hoạt TanStack Query gọi API đúng 1 lần duy nhất.
+
+* **Tại sao sử dụng (Why):**  
+  Cắt giảm hơn 90% số lượng request dư thừa lên Server, giải quyết triệt để xung đột phản hồi mạng nhưng vẫn đảm bảo trải nghiệm nhập liệu tức thì cho người dùng.
+
+---
+
+## BẢNG TỔNG HỢP SO SÁNH KỸ THUẬT
+
+| STT | Kỹ thuật áp dụng | Vấn đề giải quyết | Giá trị mang lại |
+| :---: | :--- | :--- | :--- |
+| **1** | **JWT & Axios Request Interceptor** | Quản lý phiên không trạng thái, loại bỏ việc truyền token thủ công | Xác thực tập trung, bảo mật, code sạch |
+| **2** | **Refresh Token Queue Interceptor** | Tránh xung đột (Race Condition) và lỗi văng phiên khi làm mới token | Trải nghiệm đăng nhập liên tục (Seamless Session) |
+| **3** | **RBAC (Role-Based Access Control)** | Phân định ranh giới chức năng và dữ liệu giữa Admin và Employee | Kiểm soát quyền hạn tập trung, chuẩn kiến trúc |
+| **4** | **Route Guards & Dynamic UI** | Chặn nhập URL trực tiếp và ẩn các nút thao tác ngoài quyền hạn | Bảo mật 2 lớp, giao diện đúng thẩm quyền |
+| **5** | **TanStack Query (`keepPreviousData`)**| Khắc phục nháy trắng màn hình khi đổi trang và tối ưu Cache | Trải nghiệm phân trang êm ái, giảm tải cho Server |
+| **6** | **Debounce Search (`useRef`)** | Chặn spam hàng loạt request khi người dùng đang nhập từ khóa | Tiết kiệm tài nguyên mạng, ngăn lỗi sai lệch dữ liệu |
