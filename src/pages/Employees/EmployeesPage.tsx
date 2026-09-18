@@ -23,7 +23,7 @@ import {
 } from "@heroui/react";
 import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { usersApi } from "../../api/users";
+import { usersApi, type UsersQuery } from "../../api/users";
 import { useRef, useState } from "react";
 
 const LIMIT = 10;
@@ -54,10 +54,13 @@ export default function EmployeesPage() {
   // 2. State input và Ref debounce
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // Filter department, role, status từ URL
+  const department = (searchParams.get("department") ?? "") as UsersQuery["department"];
+  const role = (searchParams.get("role") || "") as UsersQuery["role"];
+  const status = (searchParams.get("status") || "") as UsersQuery["status"];
   const { data } = useQuery({
-    queryKey: ["users", { page, limit: LIMIT, search: searchFromUrl }],
-    queryFn: () => usersApi.getUsers({ page, limit: LIMIT, search: searchFromUrl }),
+    queryKey: ["users", { page, limit: LIMIT, search: searchFromUrl, department, role, status }],
+    queryFn: () => usersApi.getUsers({ page, limit: LIMIT, search: searchFromUrl, department, role, status }),
     placeholderData: keepPreviousData,
   });
   const users = data?.data ?? [];
@@ -150,7 +153,8 @@ export default function EmployeesPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Phòng ban</label>
             <select
-              defaultValue=""
+              value={department}
+              onChange={(e) => updateParams({ department: e.target.value, page: "1" })}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-full bg-white"
             >
               <option value="">Tất cả phòng ban</option>
@@ -166,7 +170,8 @@ export default function EmployeesPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Vai trò (Role)</label>
             <select
-              defaultValue=""
+              value={role}
+              onChange={(e) => updateParams({ role: e.target.value, page: "1" })}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-full bg-white"
             >
               <option value="">Tất cả vai trò</option>
@@ -182,7 +187,8 @@ export default function EmployeesPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Trạng thái</label>
             <select
-              defaultValue=""
+              value={status}
+              onChange={(e) => updateParams({ status: e.target.value, page: "1" })}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-full bg-white"
             >
               <option value="">Tất cả trạng thái</option>
