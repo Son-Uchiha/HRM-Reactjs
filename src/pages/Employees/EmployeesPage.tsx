@@ -22,8 +22,8 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { usersApi, type UsersQuery } from "../../api/users";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usersApi, type CreateUserPayload, type UsersQuery } from "../../api/users";
 import { useRef, useState } from "react";
 
 const LIMIT = 10;
@@ -32,6 +32,22 @@ const inputCls =
   "border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full bg-white transition-all";
 
 export default function EmployeesPage() {
+  const queryClient = useQueryClient();
+
+  // Form state khởi tạo
+  const initialForm: CreateUserPayload = {
+    username: "",
+    password: "",
+    name: "",
+    email: "",
+    phone: "",
+    department: "Engineering",
+    position: "",
+    role: "employee",
+    salary: 0,
+    status: "active",
+  };
+  const [form, setForm] = useState<CreateUserPayload>(initialForm);
   const navigate = useNavigate();
   const createState = useOverlayState();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -77,6 +93,42 @@ export default function EmployeesPage() {
       }),
     placeholderData: keepPreviousData,
   });
+
+  const createMutation = useMutation({
+    mutationFn: usersApi.createUser,
+    onSuccess: () => {
+      // 1. Tự động load lại danh sách nhân viên mới nhất trên bảng
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      // 2. Đóng Modal
+      createState.close();
+      // 3. Xóa trắng form về mặc định
+      resetForm();
+    },
+    onError: (err: any) => {
+      const errorMsg =
+        err.response?.data?.error ||
+        Object.values(err.response?.data?.errors || {})[0] ||
+        "Có lỗi xảy ra khi tạo nhân viên!";
+      alert(errorMsg);
+    },
+  });
+
+  const handleCreateSubmit = () => {
+    createMutation.mutate(form);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      // Nếu là ô number (như lương) thì tự ép sang Number, còn lại giữ string
+      [name]: type === "number" ? Number(value) : value,
+    }));
+  };
+
+  const resetForm = () => {
+    setForm(initialForm);
+  };
   const users = data?.data ?? [];
   const totalUsers = data?.pagination.total ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
@@ -421,7 +473,15 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">
                         Tên đăng nhập (Username) <span className="text-rose-500">*</span>
                       </label>
-                      <input type="text" placeholder="vd: tran_van_c" className={inputCls} />
+                      <input
+                        name="username"
+                        type="text"
+                        placeholder="vd: tran_van_c"
+                        className={inputCls}
+                        value={form.username}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
 
                     {/* Password */}
@@ -429,7 +489,15 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">
                         Mật khẩu ban đầu <span className="text-rose-500">*</span>
                       </label>
-                      <input type="password" placeholder="Tối thiểu 6 ký tự" className={inputCls} />
+                      <input
+                        name="password"
+                        type="password"
+                        placeholder="Tối thiểu 6 ký tự"
+                        className={inputCls}
+                        value={form.password}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
 
                     {/* Full Name */}
@@ -437,27 +505,52 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">
                         Họ và tên nhân viên <span className="text-rose-500">*</span>
                       </label>
-                      <input type="text" placeholder="vd: Trần Văn C" className={inputCls} />
+                      <input
+                        name="name"
+                        type="text"
+                        placeholder="vd: Trần Văn C"
+                        className={inputCls}
+                        value={form.name}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
 
                     {/* Email */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Địa chỉ Email <span className="text-rose-500">*</span>
-                      </label>
-                      <input type="email" placeholder="tranvanc@hrm.com" className={inputCls} />
+                      <label className="text-xs font-semibold text-slate-700">Địa chỉ Email</label>
+                      <input
+                        name="email"
+                        type="email"
+                        placeholder="tranvanc@hrm.com"
+                        className={inputCls}
+                        value={form.email}
+                        onChange={handleInputChange}
+                      />
                     </div>
 
                     {/* Phone */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
-                      <input type="tel" placeholder="0987654321" className={inputCls} />
+                      <input
+                        name="phone"
+                        type="tel"
+                        placeholder="0987654321"
+                        className={inputCls}
+                        value={form.phone}
+                        onChange={handleInputChange}
+                      />
                     </div>
 
                     {/* Department */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Phòng ban</label>
-                      <select defaultValue="Engineering" className={inputCls}>
+                      <select
+                        defaultValue="Engineering"
+                        className={inputCls}
+                        value={form.department}
+                        onChange={handleInputChange}
+                      >
                         {DEPARTMENTS.map((dept) => (
                           <option key={dept} value={dept}>
                             {dept}
@@ -469,7 +562,14 @@ export default function EmployeesPage() {
                     {/* Position */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Chức vụ / Vị trí</label>
-                      <input type="text" placeholder="vd: Frontend Developer" className={inputCls} />
+                      <input
+                        name="position"
+                        type="text"
+                        placeholder="vd: Frontend Developer"
+                        className={inputCls}
+                        value={form.position}
+                        onChange={handleInputChange}
+                      />
                     </div>
 
                     {/* Role */}
@@ -477,7 +577,12 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">
                         Vai trò hệ thống (RBAC) <span className="text-rose-500">*</span>
                       </label>
-                      <select defaultValue="employee" className={inputCls}>
+                      <select
+                        defaultValue="employee"
+                        className={inputCls}
+                        value={form.role}
+                        onChange={handleInputChange}
+                      >
                         <option value="employee">Nhân viên (Employee)</option>
                         <option value="admin">Quản trị viên (Admin)</option>
                       </select>
@@ -486,13 +591,25 @@ export default function EmployeesPage() {
                     {/* Salary */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Mức lương cơ bản (VNĐ)</label>
-                      <input type="number" placeholder="20000000" className={inputCls} />
+                      <input
+                        name="salary"
+                        type="number"
+                        placeholder="20000000"
+                        className={inputCls}
+                        value={form.salary}
+                        onChange={handleInputChange}
+                      />
                     </div>
 
                     {/* Status */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Trạng thái hoạt động</label>
-                      <select defaultValue="active" className={inputCls}>
+                      <select
+                        defaultValue="active"
+                        className={inputCls}
+                        value={form.status}
+                        onChange={handleInputChange}
+                      >
                         <option value="active">Hoạt động (Active)</option>
                         <option value="inactive">Tạm khóa (Inactive)</option>
                       </select>
@@ -508,15 +625,22 @@ export default function EmployeesPage() {
               </ModalBody>
 
               <ModalFooter>
-                <Button variant="ghost" onPress={createState.close}>
+                <Button
+                  variant="ghost"
+                  onPress={() => {
+                    createState.close();
+                    resetForm();
+                  }}
+                >
                   Hủy bỏ
                 </Button>
                 <Button
                   variant="primary"
                   className="bg-blue-600 hover:bg-blue-700 text-white"
-                  onPress={createState.close}
+                  isDisabled={createMutation.isPending}
+                  onPress={handleCreateSubmit}
                 >
-                  Thêm mới nhân viên
+                  {createMutation.isPending ? "Đang tạo..." : "Thêm mới nhân viên"}
                 </Button>
               </ModalFooter>
             </ModalDialog>

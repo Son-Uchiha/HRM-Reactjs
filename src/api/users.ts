@@ -1,5 +1,5 @@
 import http from "../lib/http";
-import type { UsersResponse } from "../types";
+import type { User, UsersResponse } from "../types";
 
 export interface UsersQuery {
   page?: number; // Số trang (mặc định: 1)
@@ -13,9 +13,28 @@ export interface UsersQuery {
   order?: "asc" | "desc"; // Chiều sắp xếp (mặc định: desc)
 }
 
+// Khai báo kiểu dữ liệu khi tạo nhân viên
+export interface CreateUserPayload {
+  username: string;
+  password: string;
+  name: string;
+  role?: "admin" | "employee";
+  email?: string;
+  phone?: string;
+  department?: "Engineering" | "Human Resources" | "Sales" | "Marketing" | "Finance" | "Design";
+  position?: string;
+  salary?: number;
+  status?: "active" | "inactive";
+}
+
 export const usersApi = {
   getUsers: async (params: UsersQuery = {}) => {
     const { data } = await http.get<UsersResponse>("/users", { params });
     return data;
+  },
+  // Thêm hàm gọi API POST /api/users
+  createUser: async (payload: CreateUserPayload) => {
+    const { data } = await http.post<{ data: User }>("/users", payload);
+    return data.data;
   },
 };
