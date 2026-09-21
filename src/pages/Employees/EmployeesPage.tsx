@@ -24,7 +24,7 @@ import {
 import { DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS } from "../../data/users";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi, type CreateUserPayload, type UsersQuery } from "../../api/users";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const LIMIT = 10;
 
@@ -47,7 +47,26 @@ export default function EmployeesPage() {
     salary: 0,
     status: "active",
   };
+
   const [form, setForm] = useState<CreateUserPayload>(initialForm);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref để điều khiển ô input file
+  // 🔥 Kỹ thuật giải phóng bộ nhớ với useEffect
+  useEffect(() => {
+    // Nếu không có file (hoặc đã bấm xóa file)
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    // 1. Tạo blob URL trong bộ nhớ RAM
+    const objectUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreview(objectUrl);
+    // 2. Hàm Cleanup: Chạy khi đổi file mới, bấm xóa, hoặc unmount component
+    return () => {
+      URL.revokeObjectURL(objectUrl); // 🧹 Giải phóng RAM ngay lập tức!
+    };
+  }, [avatarFile]);
   const navigate = useNavigate();
   const createState = useOverlayState();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -64,6 +83,7 @@ export default function EmployeesPage() {
       return next;
     });
   };
+  const [isUploading, setIsUploading] = useState(false);
   // 1. Đọc số trang từ URL (vd: ?page=2). Nếu không có hoặc lỗi thì mặc định là 1
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const searchFromUrl = searchParams.get("search") || "";
@@ -113,8 +133,26 @@ export default function EmployeesPage() {
     },
   });
 
-  const handleCreateSubmit = () => {
-    createMutation.mutate(form);
+  const handleCreateSubmit = async () => {
+    // Tạo bản copy payload để không mutate state trực tiếp
+    let payload = { ...form };
+
+    // Bước 1: Nếu có chọn ảnh → Upload trước để lấy URL
+    if (avatarFile) {
+      try {
+        setIsUploading(true);
+        const avatarUrl = await usersApi.uploadAvatar(avatarFile);
+        payload.avatar = avatarUrl; // Gắn URL vào payload
+      } catch (err) {
+        alert("Upload ảnh thất bại! Vui lòng thử lại.");
+        return; // Dừng lại, không tạo user nếu upload lỗi
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    // Bước 2: Tạo nhân viên với payload (có hoặc không có avatar)
+    createMutation.mutate(payload);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -128,7 +166,13 @@ export default function EmployeesPage() {
 
   const resetForm = () => {
     setForm(initialForm);
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
+
   const users = data?.data ?? [];
   const totalUsers = data?.pagination.total ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
@@ -171,6 +215,20 @@ export default function EmployeesPage() {
     searchTimerRef.current = setTimeout(() => {
       updateParams({ page: "1", search: value });
     }, 500);
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; // Lấy file đầu tiên người dùng chọn
+    if (!file) return;
+    setAvatarFile(file); // Lưu file thật để upload sau
+  };
+
+  // 🔥 Hàm bấm nút xóa ảnh preview
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null); // Set về null -> useEffect sẽ tự động gọi URL.revokeObjectURL() thu hồi RAM
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Xóa trắng input file (để nếu chọn lại đúng file đó vẫn nhận)
+    }
   };
 
   return (
@@ -546,6 +604,7 @@ export default function EmployeesPage() {
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Phòng ban</label>
                       <select
+                        name="department"
                         defaultValue="Engineering"
                         className={inputCls}
                         value={form.department}
@@ -578,6 +637,7 @@ export default function EmployeesPage() {
                         Vai trò hệ thống (RBAC) <span className="text-rose-500">*</span>
                       </label>
                       <select
+                        name="role"
                         defaultValue="employee"
                         className={inputCls}
                         value={form.role}
@@ -605,6 +665,7 @@ export default function EmployeesPage() {
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Trạng thái hoạt động</label>
                       <select
+                        name="status"
                         defaultValue="active"
                         className={inputCls}
                         value={form.status}
@@ -618,7 +679,35 @@ export default function EmployeesPage() {
                     {/* Avatar Upload Preview Box */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Ảnh đại diện (Avatar)</label>
-                      <input type="file" accept="image/*" className={inputCls} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className={inputCls}
+                        onChange={handleAvatarChange}
+                        ref={fileInputRef}
+                      />
+                      {avatarPreview ? (
+                        <div className="flex items-center gap-3 mt-1">
+                          {/* Khung ảnh preview */}
+                          <img
+                            src={avatarPreview}
+                            alt="Avatar preview"
+                            className="w-16 h-16 rounded-xl object-cover ring-2 ring-blue-500/30 shadow-sm"
+                          />
+                          {/* Nút bấm Xóa ảnh */}
+                          <button
+                            type="button"
+                            onClick={handleRemoveAvatar}
+                            className="text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors border border-rose-200"
+                          >
+                            ✕ Xóa ảnh
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 text-xl">
+                          📷
+                        </div>
+                      )}
                     </div>
                   </div>
                 </form>
@@ -637,7 +726,7 @@ export default function EmployeesPage() {
                 <Button
                   variant="primary"
                   className="bg-blue-600 hover:bg-blue-700 text-white"
-                  isDisabled={createMutation.isPending}
+                  isDisabled={createMutation.isPending || isUploading}
                   onPress={handleCreateSubmit}
                 >
                   {createMutation.isPending ? "Đang tạo..." : "Thêm mới nhân viên"}

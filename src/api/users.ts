@@ -25,6 +25,7 @@ export interface CreateUserPayload {
   position?: string;
   salary?: number;
   status?: "active" | "inactive";
+  avatar?: string;
 }
 
 export const usersApi = {
@@ -36,5 +37,13 @@ export const usersApi = {
   createUser: async (payload: CreateUserPayload) => {
     const { data } = await http.post<{ data: User }>("/users", payload);
     return data.data;
+  },
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const { data } = await http.post<{ data: { avatar: string } }>("/users/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data.data.avatar; // Trả về URL string của ảnh
   },
 };
