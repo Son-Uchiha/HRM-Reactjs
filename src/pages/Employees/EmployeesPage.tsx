@@ -69,6 +69,8 @@ export default function EmployeesPage() {
   }, [avatarFile]);
   const navigate = useNavigate();
   const createState = useOverlayState();
+  const deleteState = useOverlayState();
+  const [userToDelete, setUserToDelete] = useState<{ id: number; name: string } | null>(null); // Lưu nhân viên đang chọn xóa
   const [searchParams, setSearchParams] = useSearchParams();
   const updateParams = (updates: Record<string, string | null>) => {
     setSearchParams((prev) => {
@@ -129,6 +131,22 @@ export default function EmployeesPage() {
         err.response?.data?.error ||
         Object.values(err.response?.data?.errors || {})[0] ||
         "Có lỗi xảy ra khi tạo nhân viên!";
+      alert(errorMsg);
+    },
+  });
+
+  // ✅ Mutation xóa nhân viên
+  const deleteMutation = useMutation({
+    mutationFn: usersApi.deleteUser,
+    onSuccess: () => {
+      // Reload lại bảng danh sách sau khi xóa thành công
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      // Đóng modal và reset state
+      deleteState.close();
+      setUserToDelete(null);
+    },
+    onError: (err: any) => {
+      const errorMsg = err.response?.data?.error || "Có lỗi xảy ra khi xóa nhân viên!";
       alert(errorMsg);
     },
   });
@@ -460,6 +478,11 @@ export default function EmployeesPage() {
                         variant="danger-soft"
                         isDisabled={user.id === 1} // Không được xóa admin chính chủ
                         className={user.id === 1 ? "opacity-40 cursor-not-allowed" : ""}
+                        onPress={() => {
+                          // 🆕 Lưu thông tin nhân viên cần xóa và mở Modal
+                          setUserToDelete({ id: user.id, name: user.name });
+                          deleteState.open();
+                        }}
                       >
                         Xóa
                       </Button>
@@ -730,6 +753,58 @@ export default function EmployeesPage() {
                   onPress={handleCreateSubmit}
                 >
                   {createMutation.isPending ? "Đang tạo..." : "Thêm mới nhân viên"}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </ModalRoot>
+
+      {/* 🆕 Delete Confirmation Modal */}
+      <ModalRoot state={deleteState}>
+        <ModalBackdrop>
+          <ModalContainer>
+            <ModalDialog className="max-w-md">
+              <ModalHeader className="flex flex-col items-center text-center pt-6">
+                {/* Icon cảnh báo màu đỏ */}
+                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 text-2xl mb-2">
+                  ⚠️
+                </div>
+                <ModalHeading className="text-lg font-bold text-slate-900">Xác nhận xóa nhân viên</ModalHeading>
+              </ModalHeader>
+
+              <ModalBody className="text-center px-6 py-2">
+                <p className="text-sm text-slate-600">
+                  Bạn có chắc chắn muốn xóa nhân viên{" "}
+                  <strong className="text-slate-900 font-semibold">"{userToDelete?.name}"</strong> khỏi hệ thống?
+                </p>
+                <p className="text-xs text-rose-500 mt-2 bg-rose-50 p-2.5 rounded-lg border border-rose-100">
+                  ⚠️ Lưu ý: Hành động này không thể hoàn tác. Dữ liệu liên quan đến nhân viên này sẽ bị xóa.
+                </p>
+              </ModalBody>
+
+              <ModalFooter className="flex justify-end gap-3 pb-6 px-6">
+                <Button
+                  variant="ghost"
+                  isDisabled={deleteMutation.isPending}
+                  onPress={() => {
+                    deleteState.close();
+                    setUserToDelete(null);
+                  }}
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  variant="danger"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-medium"
+                  isDisabled={deleteMutation.isPending}
+                  onPress={() => {
+                    if (userToDelete) {
+                      deleteMutation.mutate(userToDelete.id);
+                    }
+                  }}
+                >
+                  {deleteMutation.isPending ? "Đang xóa..." : "Xóa vĩnh viễn"}
                 </Button>
               </ModalFooter>
             </ModalDialog>

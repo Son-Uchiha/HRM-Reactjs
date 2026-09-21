@@ -46,4 +46,8 @@ export const usersApi = {
     });
     return data.data.avatar; // Trả về URL string của ảnh
   },
+  deleteUser: async (id: number) => {
+    const { data } = await http.delete<{ message: string }>(`/users/${id}`);
+    return data;
+  },
 };
