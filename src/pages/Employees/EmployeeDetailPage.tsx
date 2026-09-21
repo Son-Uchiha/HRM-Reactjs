@@ -1,7 +1,20 @@
 import { useNavigate, useParams } from "react-router";
-import { Button, Card, Chip } from "@heroui/react";
+import {
+  Button,
+  Card,
+  Chip,
+  ModalRoot,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalHeading,
+  ModalFooter,
+  useOverlayState,
+} from "@heroui/react";
 import { DEPARTMENTS, ROLES, STATUSES } from "../../data/users";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi } from "../../api/users";
 
 const inputCls =
@@ -10,6 +23,22 @@ const inputCls =
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const deleteState = useOverlayState(); // Điều khiển mở/đóng Modal xóa
+
+  //  Mutation gọi API xóa nhân viên
+  const deleteMutation = useMutation({
+    mutationFn: usersApi.deleteUser,
+    onSuccess: () => {
+      // Xóa thành công → refresh cache danh sách & chuyển về trang danh sách
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      navigate("/employees"); // Quay về danh sách vì nhân viên này đã bị xóa
+    },
+    onError: (err: any) => {
+      const errorMsg = err.response?.data?.error || "Có lỗi xảy ra khi xóa nhân viên!";
+      alert(errorMsg);
+    },
+  });
 
   const {
     data: user,
@@ -83,6 +112,7 @@ export default function EmployeeDetailPage() {
             size="sm"
             isDisabled={user?.id === 1}
             className={user?.id === 1 ? "opacity-40 cursor-not-allowed" : ""}
+            onPress={deleteState.open}
           >
             Xóa nhân viên
           </Button>
@@ -289,6 +319,50 @@ export default function EmployeeDetailPage() {
           </form>
         </Card.Content>
       </Card>
+
+      {/* 🆕 Delete Confirmation Modal */}
+      <ModalRoot state={deleteState}>
+        <ModalBackdrop>
+          <ModalContainer>
+            <ModalDialog className="max-w-md">
+              <ModalHeader className="flex flex-col items-center text-center pt-6">
+                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 text-2xl mb-2">
+                  ⚠️
+                </div>
+                <ModalHeading className="text-lg font-bold text-slate-900">Xác nhận xóa nhân viên</ModalHeading>
+              </ModalHeader>
+
+              <ModalBody className="text-center px-6 py-2">
+                <p className="text-sm text-slate-600">
+                  Bạn có chắc chắn muốn xóa nhân viên{" "}
+                  <strong className="text-slate-900 font-semibold">"{user?.name}"</strong> khỏi hệ thống?
+                </p>
+                <p className="text-xs text-rose-500 mt-2 bg-rose-50 p-2.5 rounded-lg border border-rose-100">
+                  ⚠️ Lưu ý: Hành động này không thể hoàn tác. Dữ liệu liên quan đến nhân viên này sẽ bị xóa vĩnh viễn.
+                </p>
+              </ModalBody>
+
+              <ModalFooter className="flex justify-end gap-3 pb-6 px-6">
+                <Button variant="ghost" isDisabled={deleteMutation.isPending} onPress={deleteState.close}>
+                  Hủy bỏ
+                </Button>
+                <Button
+                  variant="danger"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-medium"
+                  isDisabled={deleteMutation.isPending}
+                  onPress={() => {
+                    if (user) {
+                      deleteMutation.mutate(user.id);
+                    }
+                  }}
+                >
+                  {deleteMutation.isPending ? "Đang xóa..." : "Xóa vĩnh viễn"}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </ModalRoot>
     </div>
   );
 }
