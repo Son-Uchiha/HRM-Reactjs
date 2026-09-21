@@ -33,6 +33,10 @@ export const usersApi = {
     const { data } = await http.get<UsersResponse>("/users", { params });
     return data;
   },
+  getUser: async (id: number) => {
+    const { data } = await http.get<{ data: User }>(`/users/${id}`);
+    return data.data; // Trả về object User luôn (bỏ lớp wrapper { data: ... })
+  },
   // Thêm hàm gọi API POST /api/users
   createUser: async (payload: CreateUserPayload) => {
     const { data } = await http.post<{ data: User }>("/users", payload);
