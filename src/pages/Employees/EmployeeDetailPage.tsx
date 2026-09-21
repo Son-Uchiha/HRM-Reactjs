@@ -67,16 +67,6 @@ export default function EmployeeDetailPage() {
     );
   }
 
-  // 🆕 Xử lý trạng thái Loading
-  if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto py-20 text-center">
-        <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="mt-3 text-sm text-slate-500">Đang tải thông tin nhân viên...</p>
-      </div>
-    );
-  }
-
   // 🆕 Xử lý trạng thái Error hoặc không tìm thấy
   if (isError || !user) {
     return (
