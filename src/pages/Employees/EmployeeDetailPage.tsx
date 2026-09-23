@@ -51,6 +51,7 @@ export default function EmployeeDetailPage() {
     role: "employee",
     status: "active",
   });
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   // 🆕 State quản lý avatar upload (pattern giống EmployeesPage)
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -136,6 +137,12 @@ export default function EmployeeDetailPage() {
       // Reset avatar state sau khi lưu thành công
       setAvatarFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+
+      // 🆕 Bật Toast thông báo và tự động tắt sau 3 giây
+      setShowSuccessToast(true);
+      setTimeout(() => {
+        setShowSuccessToast(false);
+      }, 3000);
     },
     onError: (err: any) => {
       const errors = err.response?.data?.errors;
@@ -547,6 +554,28 @@ export default function EmployeeDetailPage() {
           </ModalContainer>
         </ModalBackdrop>
       </ModalRoot>
+      {/* 🆕 Component Toast thông báo cập nhật thành công */}
+      {showSuccessToast && (
+        <div className="fixed top-20 right-6 z-50 flex items-center gap-3 bg-white border border-emerald-200 text-slate-800 px-4 py-3 rounded-xl shadow-xl shadow-emerald-500/10 transition-all duration-300">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+            {/* Icon tick xanh lá SVG */}
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-emerald-800">Cập nhật thành công!</p>
+            <p className="text-xs text-slate-500">Thông tin nhân viên đã được lưu vào hệ thống.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSuccessToast(false)}
+            className="ml-3 text-slate-400 hover:text-slate-600 text-sm font-semibold p-1 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
