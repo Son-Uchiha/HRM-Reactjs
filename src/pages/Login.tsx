@@ -16,7 +16,7 @@ export default function Login() {
     setIsloading(true);
     try {
       await login(username, password);
-      navigate("/employees");
+      navigate("/");
     } catch (error) {
       console.log(error);
     } finally {
