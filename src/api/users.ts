@@ -28,6 +28,18 @@ export interface CreateUserPayload {
   avatar?: string;
 }
 
+export interface UpdateUserPayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string; // Để trống = giữ nguyên mật khẩu cũ
+  avatar?: string;
+  role?: "admin" | "employee";
+  department?: "Engineering" | "Human Resources" | "Sales" | "Marketing" | "Finance" | "Design";
+  position?: string;
+  salary?: number;
+  status?: "active" | "inactive";
+}
 export const usersApi = {
   getUsers: async (params: UsersQuery = {}) => {
     const { data } = await http.get<UsersResponse>("/users", { params });
@@ -53,5 +65,9 @@ export const usersApi = {
   deleteUser: async (id: number) => {
     const { data } = await http.delete<{ message: string }>(`/users/${id}`);
     return data;
+  },
+  updateUser: async (id: number, payload: UpdateUserPayload) => {
+    const { data } = await http.put<{ message: string; data: User }>(`/users/${id}`, payload);
+    return data.data; // Trả về object User đã cập nhật
   },
 };

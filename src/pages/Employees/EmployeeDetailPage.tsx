@@ -15,7 +15,8 @@ import {
 } from "@heroui/react";
 import { DEPARTMENTS, ROLES, STATUSES } from "../../data/users";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usersApi } from "../../api/users";
+import { usersApi, type UpdateUserPayload } from "../../api/users";
+import { useEffect, useRef, useState } from "react";
 
 const inputCls =
   "border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full bg-white transition-all";
@@ -39,6 +40,34 @@ export default function EmployeeDetailPage() {
       alert(errorMsg);
     },
   });
+  const [editForm, setEditForm] = useState<UpdateUserPayload>({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    department: "Engineering",
+    position: "",
+    salary: 0,
+    role: "employee",
+    status: "active",
+  });
+  // 🆕 State quản lý avatar upload (pattern giống EmployeesPage)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreview(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl); // 🧹 Giải phóng RAM khi đổi/xóa file
+    };
+  }, [avatarFile]);
 
   const {
     data: user,
@@ -49,6 +78,22 @@ export default function EmployeeDetailPage() {
     queryFn: () => usersApi.getUser(Number(id)),
     enabled: !!id, // Chỉ gọi API khi có id
   });
+  // Khi data user load xong từ API → Đổ vào editForm
+  useEffect(() => {
+    if (user) {
+      setEditForm({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        password: "", // Luôn để trống — chỉ điền khi muốn đổi mật khẩu
+        department: user.department as UpdateUserPayload["department"],
+        position: user.position || "",
+        salary: user.salary || 0,
+        role: user.role,
+        status: user.status,
+      });
+    }
+  }, [user]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -57,7 +102,88 @@ export default function EmployeeDetailPage() {
     }).format(amount);
   };
 
-  // 🆕 Xử lý trạng thái Loading
+  // Handler khi user gõ/chọn thay đổi trên form
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: type === "number" ? Number(value) : value,
+    }));
+  };
+
+  // Handler khi chọn file avatar mới
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+  };
+
+  // Handler bấm xóa ảnh preview
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Mutation gọi API cập nhật nhân viên
+  const updateMutation = useMutation({
+    mutationFn: (payload: UpdateUserPayload) => usersApi.updateUser(Number(id), payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user", Number(id)] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      // Reset avatar state sau khi lưu thành công
+      setAvatarFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    onError: (err: any) => {
+      const errors = err.response?.data?.errors;
+      if (errors) {
+        const messages = Object.values(errors).join("\n");
+        alert("Lỗi validation:\n" + messages);
+      } else {
+        const errorMsg = err.response?.data?.error || "Có lỗi xảy ra khi cập nhật!";
+        alert(errorMsg);
+      }
+    },
+  });
+
+  // 🆕 Hàm xử lý khi bấm "Lưu thay đổi" — ASYNC vì có thể upload avatar trước
+  const handleUpdateSubmit = async () => {
+    const payload: UpdateUserPayload = {
+      name: editForm.name,
+      email: editForm.email,
+      phone: editForm.phone,
+      department: editForm.department,
+      position: editForm.position,
+      salary: editForm.salary,
+      role: editForm.role,
+      status: editForm.status,
+    };
+
+    // Chỉ gửi password nếu user đã điền (không trống)
+    if (editForm.password && editForm.password.length > 0) {
+      payload.password = editForm.password;
+    }
+
+    // 🆕 Nếu có chọn ảnh mới → Upload trước để lấy URL, rồi gắn vào payload
+    if (avatarFile) {
+      try {
+        setIsUploading(true);
+        const avatarUrl = await usersApi.uploadAvatar(avatarFile);
+        payload.avatar = avatarUrl; // Gắn URL ảnh mới vào payload
+      } catch (err) {
+        alert("Upload ảnh thất bại! Vui lòng thử lại.");
+        return; // Dừng lại, không gọi PUT nếu upload lỗi
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    updateMutation.mutate(payload);
+  };
+  // Xử lý trạng thái Loading
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto py-20 text-center">
@@ -157,13 +283,38 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
 
+            {/* ✅ MỚI — có handler + preview + nút xóa */}
             <div className="flex items-center gap-2 shrink-0 sm:pb-1">
               <label className="cursor-pointer">
-                <input type="file" accept="image/*" className="hidden" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleAvatarChange}
+                />
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-2xs whitespace-nowrap">
                   📷 Thay đổi avatar
                 </span>
               </label>
+
+              {/* 🆕 Hiển thị preview ảnh mới (nếu đã chọn file) */}
+              {avatarPreview && (
+                <div className="flex items-center gap-2">
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar preview"
+                    className="w-10 h-10 rounded-lg object-cover ring-2 ring-blue-500/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg transition-colors border border-rose-200"
+                  >
+                    ✕ Hủy
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -213,22 +364,47 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Họ và tên</label>
-                  <input type="text" defaultValue={user?.name} className={inputCls} />
+                  <input
+                    name="name"
+                    type="text"
+                    value={editForm.name}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Email liên hệ</label>
-                  <input type="email" defaultValue={user?.email} className={inputCls} />
+                  <input
+                    name="email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
-                  <input type="tel" defaultValue={user?.phone} className={inputCls} />
+                  <input
+                    name="phone"
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Mật khẩu mới (Để trống nếu giữ nguyên)</label>
-                  <input type="password" placeholder="Nhập mật khẩu mới" className={inputCls} />
+                  <input
+                    name="password"
+                    type="password"
+                    placeholder="Nhập mật khẩu mới (để trống = giữ nguyên)"
+                    value={editForm.password}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
               </div>
             </div>
@@ -250,7 +426,12 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Phòng ban</label>
-                  <select defaultValue={user?.department} className={inputCls}>
+                  <select
+                    name="department"
+                    value={editForm.department}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  >
                     {DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}
@@ -261,17 +442,29 @@ export default function EmployeeDetailPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Vị trí / Chức danh</label>
-                  <input type="text" defaultValue={user?.position} className={inputCls} />
+                  <input
+                    name="position"
+                    type="text"
+                    value={editForm.position}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Mức lương (VNĐ)</label>
-                  <input type="number" defaultValue={user?.salary} className={inputCls} />
+                  <input
+                    name="salary"
+                    type="number"
+                    value={editForm.salary}
+                    onChange={handleEditChange}
+                    className={inputCls}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Vai trò hệ thống</label>
-                  <select defaultValue={user?.role} className={inputCls}>
+                  <select name="role" value={editForm.role} onChange={handleEditChange} className={inputCls}>
                     {ROLES.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
@@ -282,7 +475,7 @@ export default function EmployeeDetailPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-700">Trạng thái tài khoản</label>
-                  <select defaultValue={user?.status} className={inputCls}>
+                  <select name="status" value={editForm.status} onChange={handleEditChange} className={inputCls}>
                     {STATUSES.map((s) => (
                       <option key={s.value} value={s.value}>
                         {s.label}
@@ -299,11 +492,12 @@ export default function EmployeeDetailPage() {
                 Hủy bỏ
               </Button>
               <Button
-                type="submit"
                 variant="primary"
                 className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20"
+                isDisabled={updateMutation.isPending || isUploading}
+                onPress={handleUpdateSubmit}
               >
-                Lưu thay đổi
+                {updateMutation.isPending ? "Đang lưu..." : "Lưu thay đổi"}
               </Button>
             </div>
           </form>

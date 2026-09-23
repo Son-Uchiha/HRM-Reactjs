@@ -628,7 +628,6 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">Phòng ban</label>
                       <select
                         name="department"
-                        defaultValue="Engineering"
                         className={inputCls}
                         value={form.department}
                         onChange={handleInputChange}
@@ -659,13 +658,7 @@ export default function EmployeesPage() {
                       <label className="text-xs font-semibold text-slate-700">
                         Vai trò hệ thống (RBAC) <span className="text-rose-500">*</span>
                       </label>
-                      <select
-                        name="role"
-                        defaultValue="employee"
-                        className={inputCls}
-                        value={form.role}
-                        onChange={handleInputChange}
-                      >
+                      <select name="role" className={inputCls} value={form.role} onChange={handleInputChange}>
                         <option value="employee">Nhân viên (Employee)</option>
                         <option value="admin">Quản trị viên (Admin)</option>
                       </select>
@@ -687,13 +680,7 @@ export default function EmployeesPage() {
                     {/* Status */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-slate-700">Trạng thái hoạt động</label>
-                      <select
-                        name="status"
-                        defaultValue="active"
-                        className={inputCls}
-                        value={form.status}
-                        onChange={handleInputChange}
-                      >
+                      <select name="status" className={inputCls} value={form.status} onChange={handleInputChange}>
                         <option value="active">Hoạt động (Active)</option>
                         <option value="inactive">Tạm khóa (Inactive)</option>
                       </select>
