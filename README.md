@@ -1,134 +1,123 @@
-# HRM & RBAC Frontend Template (React 19 + HeroUI + Tailwind CSS v4)
+# 🏢 HRM & RBAC Portal — Frontend (React 19)
 
-Giao diện quản lý nhân sự và phân quyền (HRM & RBAC) được xây dựng bằng **React 19**, **Vite**, **TypeScript**, **HeroUI** và **Tailwind CSS v4**.
+Hệ thống Quản lý Nhân sự & Phân quyền người dùng (HRM & Role-Based Access Control) xây dựng trên nền tảng **React 19**, **TypeScript**, **Vite**, **TanStack Query (React Query v5)**, **HeroUI** và **Tailwind CSS v4**.
 
-Template này được thiết kế sẵn toàn bộ **giao diện người dùng (UI)** và **mock data** tương thích 100% với **Bun.js RESTful API Backend** (Hono + SQLite), sẵn sàng để bạn tự tích hợp các luồng xử lý logic (gọi API, quản lý State, Authentication, Authorization RBAC).
+Frontend kết nối trực tiếp với RESTful API Backend (**Bun.js + Hono + SQLite**), hỗ trợ đầy đủ các tính năng xác thực, phân quyền, quản lý dữ liệu bất đồng bộ và tải ảnh đại diện.
 
 ---
 
-## 🛠️ Công nghệ sử dụng
+## 🛠️ Tech Stack & Thư viện sử dụng
 
-- **Core**: [React 19](https://react.dev/), [Vite 7](https://vitejs.dev/), [TypeScript](https://www.typescriptlang.org/)
-- **Routing**: [React Router v7](https://reactrouter.com/)
+- **Core Framework**: [React 19](https://react.dev/) + [Vite 7](https://vitejs.dev/) + [TypeScript 5](https://www.typescriptlang.org/)
+- **Server State Management**: [TanStack Query v5](https://tanstack.com/query/latest) (`@tanstack/react-query`)
+- **Routing & Guards**: [React Router v7](https://reactrouter.com/)
 - **UI Components**: [HeroUI](https://heroui.com/) (`@heroui/react`)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) (`@tailwindcss/vite`)
+- **HTTP Client**: [Axios](https://axios-http.com/) (Tích hợp Request/Response Interceptors)
 - **Animation**: [Framer Motion](https://www.framer.com/motion/)
+
+---
+
+## 💡 Các Kỹ năng & Kỹ thuật Frontend thực chiến (Key Technical Skills)
+
+Dự án áp dụng các kiến trúc và kỹ thuật tiêu chuẩn của lập trình Frontend hiện đại:
+
+### 1. Quản lý Server State với TanStack Query (React Query v5)
+- **Tách biệt Cache theo Query Keys**: Phân tầng cache rõ ràng (`["users", params]`, `["user", id]`, `["me"]`).
+- **Data Mutations**: Sử dụng `useMutation` xử lý bất đồng bộ cho các thao tác Thêm (`POST`), Sửa (`PUT`), Xóa (`DELETE`).
+- **Cache Invalidation thông minh**: Sử dụng `queryClient.invalidateQueries` để tự động làm mới tức thì bảng danh sách, trang chi tiết và Header ngay sau khi cập nhật thông tin thành công mà không cần F5 trình duyệt.
+- **Cache Pre-population & Cleanup**: Nạp sẵn thông tin tài khoản vào cache khi Đăng nhập (`setQueryData`) và dọn sạch toàn bộ cache khi Đăng xuất (`queryClient.clear()`) để bảo mật.
+
+### 2. Tối ưu hiệu năng & Trải nghiệm người dùng (Performance & UX)
+- **Debounce Search Input (500ms)**: Kết hợp `setTimeout` và `useRef` để trì hoãn việc gửi request, tự động hủy bỏ timer cũ (`clearTimeout`) khi người dùng đang gõ phím liên tục. Giúp giảm hơn 80% request thừa lên server.
+- **URL-Driven State (Đồng bộ bộ lọc với URL)**: Sử dụng `useSearchParams` để đồng bộ toàn bộ trạng thái tìm kiếm, phân trang, lọc phòng ban/vai trò/trạng thái và sắp xếp lên URL. Người dùng có thể bookmark, refresh hoặc share link mà không bị mất bộ lọc.
+- **Quản lý bộ nhớ RAM khi Upload Ảnh (Prevent Memory Leak)**:
+  - Sử dụng `URL.createObjectURL(file)` để tạo preview ảnh tức thì trên trình duyệt.
+  - Sử dụng hàm dọn dẹp (cleanup function) trong `useEffect` để giải phóng RAM (`URL.revokeObjectURL`) ngay khi người dùng chọn ảnh khác, xóa ảnh hoặc chuyển trang.
+- **Controlled Forms Pattern**: Chuyển đổi toàn bộ các form sang controlled inputs (`value` + `onChange`), kiểm soát dữ liệu chặt chẽ và tương thích với API payload.
+- **Custom Toast Notification**: Hệ thống thông báo thành công dạng popup nổi ở góc màn hình, tự động ẩn sau 3 giây thay thế hoàn toàn `alert()` mặc định của trình duyệt.
+
+### 3. Bảo mật & Phân quyền người dùng (Security & RBAC)
+- **Silent Refresh Token Rotation với Request Queue**:
+  - Tự động bắt mã lỗi `401 Unauthorized` tại Axios Response Interceptor khi Access Token hết hạn.
+  - Gọi ngầm `POST /api/auth/refresh` để nhận cặp Token mới và lưu vào `localStorage`.
+  - Tự động đưa các request phát sinh trong lúc đang refresh vào hàng đợi (Queue), sau đó tự động retry lại các request này mà người dùng không nhận thấy gián đoạn.
+- **Hệ thống Route Guards đa lớp**:
+  - `ProtectedRoute`: Yêu cầu phải đăng nhập mới được vào các màn hình nội bộ.
+  - `GuestRoute`: Chặn người dùng đã đăng nhập truy cập lại trang Login.
+  - `AdminRoute`: Bảo vệ các trang quản trị (`/employees`), kết hợp cờ `isLoadingUser` để ngăn chặn hiện tượng bị "đá văng nhầm" khi người dùng F5 trang.
+  - `RootRedirect`: Tự động phân luồng trang chủ dựa theo quyền: `admin` chuyển tới `/employees`, `employee` chuyển tới `/profile`.
+
+### 4. UI/UX Design & Component Architecture
+- Tích hợp bộ thư viện **HeroUI**: Sử dụng Modal Dialogs xác nhận xóa an toàn, Backdrop, Buttons đa trạng thái (Loading, Disabled, Hover), Chips phân loại trạng thái.
+- Giao diện đáp ứng (Responsive Design) hoàn chỉnh trên cả Desktop, Tablet và Mobile.
+
+---
+
+## 📁 Cấu trúc thư mục nguồn (`src/`)
+
+```text
+src/
+├── api/                   # Tầng gọi API Backend (Axios requests)
+│   ├── auth.ts            # API Đăng nhập, Đăng xuất, GetMe, Refresh Token
+│   └── users.ts           # API CRUD Nhân viên, Upload Avatar
+├── components/            # Các component dùng chung & Route Guards
+│   ├── AdminRoute.tsx     # Guard bảo vệ trang quản trị dành riêng cho Admin
+│   ├── GuestRoute.tsx     # Guard dành riêng cho khách chưa đăng nhập
+│   ├── ProtectedRoute.tsx # Guard bảo vệ yêu cầu xác thực
+│   └── Layout.tsx         # Khung giao diện chính (Header, User Pill, Nav, Outlet)
+├── contexts/              # React Context chia sẻ trạng thái
+│   └── AuthContext.tsx    # Quản lý phiên đăng nhập, user hiện tại & token
+├── data/                  # Hằng số hệ thống (DEPARTMENTS, ROLES, STATUSES, SORT_OPTIONS)
+│   └── users.ts
+├── lib/                   # Thư viện & cấu hình tiện ích
+│   └── http.ts            # Cấu hình Axios Client + Interceptor xử lý Refresh Token
+├── pages/                 # Các trang giao diện chính của ứng dụng
+│   ├── Login.tsx          # Trang đăng nhập kèm tài khoản demo
+│   ├── Employees/
+│   │   ├── EmployeesPage.tsx       # Bảng nhân viên, phân trang, lọc, tìm kiếm, modal tạo & xóa
+│   │   └── EmployeeDetailPage.tsx  # Xem chi tiết, cập nhật thông tin, đổi avatar & xóa nhân viên
+│   └── Profile/
+│       └── ProfilePage.tsx         # Trang hồ sơ cá nhân của người dùng đăng nhập
+├── types/                 # Định nghĩa TypeScript interfaces & types
+│   └── index.ts           # User, Role, Department, UserStatus, API Responses
+├── routes.tsx             # Cấu hình Router cây phân cấp (React Router v7)
+├── App.tsx                # Thiết lập QueryClientProvider, AuthProvider & RouterProvider
+├── main.tsx               # Entry point của ứng dụng React
+└── index.css              # Cấu hình Tailwind CSS v4
+```
 
 ---
 
 ## 🚀 Cài đặt & Khởi chạy
 
+### 1. Cài đặt các gói phụ thuộc
 ```bash
-# 1. Cài đặt các gói phụ thuộc
 npm install
+```
 
-# 2. Khởi chạy môi trường phát triển (Dev server)
+### 2. Khởi chạy môi trường phát triển (Dev server)
+```bash
 npm run dev
+```
+Ứng dụng sẽ chạy tại: `http://localhost:5173`
 
-# 3. Kiểm tra TypeScript & Build dự án
+### 3. Kiểm tra TypeScript & Build dự án
+```bash
+# Kiểm tra lỗi type (Type-check)
+npx tsc --noEmit
+
+# Đóng gói sản phẩm (Production build)
 npm run build
-
-# 4. Xem trước bản build
-npm run preview
-```
-
-Ứng dụng mặc định chạy tại: `http://localhost:5173`
-
----
-
-## 📁 Cấu trúc thư mục
-
-```text
-react-products-template/
-├── index.html
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── src/
-    ├── App.tsx
-    ├── main.tsx
-    ├── index.css
-    ├── routes.tsx                 # Cấu hình định tuyến React Router v7
-    ├── components/
-    │   └── Layout.tsx             # Khung giao diện chung (Header, User Pill, Nav, Outlet)
-    ├── data/
-    │   └── users.ts               # Mock data nhân sự & hằng số lọc (Phòng ban, Role, v.v.)
-    ├── pages/
-    │   ├── Login.tsx              # Trang đăng nhập kèm tài khoản demo
-    │   ├── Employees/
-    │   │   ├── EmployeesPage.tsx  # Danh sách nhân viên, bộ lọc & Modal thêm mới
-    │   │   └── EmployeeDetailPage.tsx # Chi tiết & cập nhật thông tin nhân viên
-    │   └── Profile/
-    │       └── ProfilePage.tsx    # Hồ sơ cá nhân của tôi (Dành cho role Employee)
-    └── types/
-        └── index.ts               # Khai báo TypeScript types (User, Role, Department, v.v.)
 ```
 
 ---
 
-## 🖥️ Các màn hình & Tính năng giao diện (UI Ready)
+## 🔐 Tài khoản Demo dùng thử
 
-### 1. Trang Đăng nhập (`/login`)
-- Form nhập `username` & `password`.
-- Thẻ ghi nhớ nhanh thông tin tài khoản demo của Backend Bun:
-  - **Admin**: `admin` / `admin123`
-  - **Employee**: `employee` / `user123`
+Hệ thống có sẵn các tài khoản thử nghiệm tương thích với Backend:
 
-### 2. Khung điều hướng chung (`Layout.tsx`)
-- Thanh điều hướng trên cùng (Sticky Header) với logo HRM Portal.
-- Menu chuyển đổi giữa **Nhân sự** và **Hồ sơ của tôi**.
-- User Profile Pill hiển thị Avatar, Họ tên, Role Chip (`ADMIN` / `EMPLOYEE`) và nút **Đăng xuất**.
-
-### 3. Quản lý Danh sách Nhân sự (`/employees`)
-- **Bộ lọc đa tiêu chí** tương thích các query parameters của `GET /api/users`:
-  - Tìm kiếm (`search`): Theo Họ tên, Username, Email, Phòng ban.
-  - Phòng ban (`department`): `Engineering`, `Human Resources`, `Sales`, `Marketing`, `Finance`, `Design`.
-  - Vai trò (`role`): `admin` hoặc `employee`.
-  - Trạng thái (`status`): `active` hoặc `inactive`.
-  - Sắp xếp (`sort_by` & `order`): Theo ngày tạo, tên, lương, v.v.
-- **Bảng dữ liệu nhân viên**: Hiển thị Avatar, Thông tin tài khoản, Phòng ban & Vị trí, Role badge, Mức lương VNĐ, Chip trạng thái, nút Xem chi tiết và nút Xóa.
-- **Thanh phân trang** (`Pagination UI`).
-- **Modal "Thêm nhân viên mới"**: Form đầy đủ các trường tương ứng với `POST /api/users`.
-
-### 4. Chi tiết & Cập nhật Nhân sự (`/employees/:id`)
-- Khung tóm tắt nhân sự với nút tải ảnh đại diện (`POST /api/users/avatar`).
-- Form phân chia rõ ràng 2 khu vực phục vụ RBAC:
-  - **Khu vực thông tin cá nhân**: Họ tên, SĐT, Mật khẩu mới, Avatar (Nhân viên & Admin đều sửa được).
-  - **Khu vực thông tin quản trị**: Phòng ban, Chức danh, Mức lương, Vai trò, Trạng thái (Gắn nhãn `🔒 Quyền Quản trị viên (Admin only)`).
-
-### 5. Hồ sơ của tôi (`/profile`)
-- Màn hình dành riêng cho tài khoản đăng nhập (tương thích `GET /api/auth/me` và `PUT /api/users/:id`).
-- Có thông báo hướng dẫn phân quyền RBAC: Nhân viên chỉ được cập nhật thông tin cá nhân, các trường thông tin quản trị sẽ ở chế độ chỉ đọc (Read-only).
-
----
-
-## 🔌 Hướng dẫn tích hợp Backend Bun RESTful API
-
-Backend chạy mặc định tại: `http://localhost:3000`
-
-### Danh sách API Endpoints cần gọi:
-
-| Phương thức | Endpoint | Phân quyền | Mục đích |
+| Tài khoản | Mật khẩu | Vai trò | Quyền hạn |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Public | Đăng nhập lấy `accessToken` & `refreshToken` |
-| `POST` | `/api/auth/refresh` | Public | Refresh token khi access token hết hạn |
-| `POST` | `/api/auth/logout` | Public | Đăng xuất và xóa token |
-| `GET` | `/api/auth/me` | 🔒 Đã đăng nhập | Lấy thông tin tài khoản hiện tại |
-| `GET` | `/api/users` | 🔒 **Admin only** | Lấy danh sách nhân viên (kèm filter, search, paging) |
-| `GET` | `/api/users/:id` | 🔒 Admin / Chính chủ | Lấy thông tin chi tiết một nhân viên |
-| `POST` | `/api/users` | 🔒 **Admin only** | Thêm mới một nhân viên |
-| `POST` | `/api/users/avatar` | 🔒 Đã đăng nhập | Upload file ảnh đại diện (`multipart/form-data`) |
-| `PUT` | `/api/users/:id` | 🔒 Admin / Chính chủ | Cập nhật thông tin nhân viên |
-| `DELETE` | `/api/users/:id` | 🔒 **Admin only** | Xóa nhân viên (ngăn xóa chính mình) |
-
-> 🔒 **Header bắt buộc khi gọi các API bảo vệ:**  
-> `Authorization: Bearer <accessToken>`
-
----
-
-## 📝 Lưu ý phát triển
-
-Dự án hiện tại hoàn toàn là **Giao diện thuần (Pure UI)** với các handler placeholder (`e.preventDefault()`). Bạn có thể tự do:
-1. Tạo thư mục `src/services` hoặc `src/api` để viết các hàm `fetch`/`axios`.
-2. Tạo context/store (`Zustand`, `Redux`, hoặc React Context) để quản lý `auth state`, `accessToken`, `user`.
-3. Bổ sung Protected Route / Route Guards trong [`src/routes.tsx`](file:///g:/BE-Reactjs-HRM/react-products-template/src/routes.tsx) để chặn truy cập theo vai trò.
+| **`admin`** | `admin123` | **Quản trị viên (Admin)** | Toàn quyền CRUD nhân viên, quản lý lương, phòng ban, đổi vai trò, xóa tài khoản. |
+| **`employee`** | `user123` | **Nhân viên (Employee)** | Xem hồ sơ cá nhân, chỉ được sửa thông tin cá nhân của chính mình. |
