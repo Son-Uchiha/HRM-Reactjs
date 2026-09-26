@@ -106,9 +106,13 @@ http.interceptors.response.use(
           message: string;
           accessToken: string;
           refreshToken?: string;
-        }>(`${http.defaults.baseURL}/auth/refresh`, {
-          refreshToken,
-        });
+        }>(
+          `${http.defaults.baseURL}/auth/refresh`,
+          {
+            refreshToken,
+          },
+          { timeout: 10000 },
+        );
 
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } = res.data;
 
